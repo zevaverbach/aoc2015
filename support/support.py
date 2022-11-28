@@ -3,14 +3,20 @@ from __future__ import annotations
 import argparse
 import contextlib
 import enum
+import os
 import os.path
+import pathlib as pl
 import re
 import sys
 import time
-import urllib.error
-import urllib.parse
-import urllib.request
-from typing import Generator
+from typing import Generator, Self
+
+from dotenv import load_dotenv
+import requests
+
+load_dotenv()
+
+COOKIE_HEADERS = {'Cookie': os.environ['ADVENT_OF_CODE_COOKIE']}
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -32,16 +38,33 @@ def timing(name: str = '') -> Generator[None, None, None]:
         print(f'> {int(t)} {unit}{name}', file=sys.stderr, flush=True)
 
 
-def _get_cookie_headers() -> dict[str, str]:
-    with open(os.path.join(HERE, '../.env')) as f:
-        contents = f.read().strip()
-    return {'Cookie': contents}
-
-
 def get_input(year: int, day: int) -> str:
     url = f'https://adventofcode.com/{year}/day/{day}/input'
-    req = urllib.request.Request(url, headers=_get_cookie_headers())
-    return urllib.request.urlopen(req).read().decode()
+    res = requests.get(url, headers=COOKIE_HEADERS)
+    if not res.ok:
+        print(f'problem getting the test input: "{res.text}"')
+        sys.exit()
+    return res.text
+
+
+def download_problem(year, day):
+    problem = get_problem(year, day)
+    module = pl.Path('part1.py')
+    module_text = module.read_text()
+    if module_text.strip().startswith('''"""'''):
+        module_text = module_text.split('"""')[-1].split('"""')[-1]
+    module_text = f'"""\n{problem}\n"""'
+    module.write_text(module_text)
+
+
+
+def get_problem(year: int, day: int) -> str:
+    url = f'https://adventofcode.com/{year}/day/{day}'
+    res = requests.get(url, headers=COOKIE_HEADERS)
+    if not res.ok:
+        print(f'problem getting the problem: "{res.text}"')
+        sys.exit()
+    return "---" + res.text.split('---', maxsplit=1)[0].split("To begin, ")[0]
 
 
 def get_year_day() -> tuple[int, int]:
@@ -55,22 +78,19 @@ def get_year_day() -> tuple[int, int]:
     return int(year_s[len('aoc'):]), int(day_s[len('day'):])
 
 
-def download_input() -> int:
-    parser = argparse.ArgumentParser()
-    parser.parse_args()
-
+def download_challenge() -> int:
     year, day = get_year_day()
+    download_input(year, day)
+    download_problem(year, day)
+    return 0
 
-    for i in range(5):
-        try:
-            s = get_input(year, day)
-        except urllib.error.URLError as e:
-            print(f'zzz: not ready yet: {e}')
-            time.sleep(1)
-        else:
-            break
-    else:
-        raise SystemExit('timed out after attempting many times')
+
+def download_input(year, day) -> None:
+    if day == 0:
+        print("days are one-indexed, so day00 is invalid")
+        sys.exit()
+
+    s = get_input(year, day)
 
     with open('input.txt', 'w') as f:
         f.write(s)
@@ -84,8 +104,6 @@ def download_input() -> int:
         print(lines[0][:80])
         print('...')
 
-    return 0
-
 
 TOO_QUICK = re.compile('You gave an answer too recently.*to wait.')
 WRONG = re.compile(r"That's not the right answer.*?\.")
@@ -94,16 +112,11 @@ ALREADY_DONE = re.compile(r"You don't seem to be solving.*\?")
 
 
 def _post_answer(year: int, day: int, part: int, answer: int) -> str:
-    params = urllib.parse.urlencode({'level': part, 'answer': answer})
-    req = urllib.request.Request(
+    return requests.post(
         f'https://adventofcode.com/{year}/day/{day}/answer',
-        method='POST',
-        data=params.encode(),
-        headers=_get_cookie_headers(),
-    )
-    resp = urllib.request.urlopen(req)
-
-    return resp.read().decode()
+        data={'level': part, 'answer': answer},
+        headers=COOKIE_HEADERS,
+    ).text
 
 
 def submit_solution() -> int:
@@ -218,21 +231,21 @@ class Direction4(enum.Enum):
         self.x, self.y = x, y
 
     @property
-    def _vals(self) -> tuple[Direction4, ...]:
+    def _vals(self) -> tuple[Self, ...]:
         return tuple(type(self).__members__.values())
 
     @property
-    def cw(self) -> Direction4:
+    def cw(self) -> Self:
         vals = self._vals
         return vals[(vals.index(self) + 1) % len(vals)]
 
     @property
-    def ccw(self) -> Direction4:
+    def ccw(self) -> Self:
         vals = self._vals
         return vals[(vals.index(self) - 1) % len(vals)]
 
     @property
-    def opposite(self) -> Direction4:
+    def opposite(self) -> Self:
         vals = self._vals
         return vals[(vals.index(self) + 2) % len(vals)]
 

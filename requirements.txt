@@ -12,5 +12,5 @@ pyparsing==3.0.9
 pytest==7.2.0
 python-dotenv==0.21.0
 requests==2.28.1
--e git+https://github.com/zevaverbach/aoc2015@7b1744cac7e3652b2afe8ba09debce231d8f7a5f#egg=support&subdirectory=support
+-e git+https://github.com/zevaverbach/aoc2015@089f2798c07712c882e573f2191b9c3d1751b429#egg=support&subdirectory=support
 urllib3==1.26.13
